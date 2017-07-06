@@ -1,0 +1,13 @@
+#########################################################################
+#				NS NFE API  				#
+#########################################################################
+
+DIVISÃO DE PASTAS
+Neste diretório, você encontrará:
+-Classe NFeAPI.pas que pode ser adicionada diretamente ao seu projeto e 
+irá disponibilizar funções de comunicação com a NS NFE API.
+-Pasta chamada Exemplo, onde existe uma aplicação que demonstra a 
+comunicação com a API.
+
+
+Link para documentação: https://goo.gl/6qN6G9

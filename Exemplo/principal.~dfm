@@ -2133,7 +2133,7 @@ object FormPrincipal: TFormPrincipal
     Top = 0
     Width = 441
     Height = 545
-    ActivePage = formEnviar
+    ActivePage = formDownload
     Font.Charset = DEFAULT_CHARSET
     Font.Color = clWindowText
     Font.Height = -16
@@ -2175,6 +2175,19 @@ object FormPrincipal: TFormPrincipal
         Width = 61
         Height = 16
         Caption = 'Conteudo:'
+        Font.Charset = DEFAULT_CHARSET
+        Font.Color = clWindowText
+        Font.Height = -13
+        Font.Name = 'MS Sans Serif'
+        Font.Style = []
+        ParentFont = False
+      end
+      object Label2: TLabel
+        Left = 216
+        Top = 40
+        Width = 111
+        Height = 16
+        Caption = 'Tipo de Conteudo:'
         Font.Charset = DEFAULT_CHARSET
         Font.Color = clWindowText
         Font.Height = -13
@@ -2232,19 +2245,18 @@ object FormPrincipal: TFormPrincipal
         Height = 153
         TabOrder = 3
       end
-      object checkEnviaTxt: TCheckBox
-        Left = 272
-        Top = 40
-        Width = 97
-        Height = 17
-        Caption = 'Enviar Txt'
-        Font.Charset = DEFAULT_CHARSET
-        Font.Color = clWindowText
-        Font.Height = -13
-        Font.Name = 'MS Sans Serif'
-        Font.Style = []
-        ParentFont = False
+      object cbTpConteudo: TComboBox
+        Left = 328
+        Top = 32
+        Width = 81
+        Height = 28
+        Style = csDropDownList
+        ItemHeight = 20
         TabOrder = 4
+        Items.Strings = (
+          'txt'
+          'xml'
+          'json')
       end
     end
     object formConsultar: TTabSheet

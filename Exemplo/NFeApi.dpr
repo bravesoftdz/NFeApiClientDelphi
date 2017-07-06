@@ -1,8 +1,9 @@
-program NFeApi;
+program NFeApiExample;
 
 uses
   Forms,
-  principal in 'principal.pas' {FormPrincipal};
+  principal in 'principal.pas' {FormPrincipal},
+  NFeAPI in 'NFeAPI.pas';
 
 {$R *.res}
 

@@ -4,7 +4,8 @@ interface
 
 uses
   Windows, Messages, SysUtils, Variants, Classes, Graphics, Controls, Forms,
-  Dialogs, StdCtrls, ComCtrls, uJSON;
+  Dialogs, StdCtrls, ComCtrls, uJSON, IdBaseComponent, IdComponent,
+  IdIOHandler, IdIOHandlerSocket, IdIOHandlerStack, IdSSL, IdSSLOpenSSL;
 
 type
   TFormPrincipal = class(TForm)
@@ -38,8 +39,9 @@ type
     editChaveDownload: TEdit;
     editTpDownload: TEdit;
     checkExibir: TCheckBox;
-    checkEnviaTxt: TCheckBox;
     Label1: TLabel;
+    cbTpConteudo: TComboBox;
+    Label2: TLabel;
     procedure btnEnviarClick(Sender: TObject);
     procedure btnConsultarClick(Sender: TObject);
     procedure btnDownloadClick(Sender: TObject);
@@ -54,19 +56,19 @@ var
 
 implementation
 
-uses NFeApiFuncoes;
+uses NFeAPI;
 
 {$R *.dfm}
 
   procedure TFormPrincipal.btnEnviarClick(Sender: TObject);
   var
-    retorno, nRec: String;
+    retorno: String;
     jsonRetorno : TJSONObject;
   begin
     //Valida se for enviado o token para emitir o CT-e de exemplo
     if ((editTokenEnviar.Text <> '') and (memoConteudo.Text <> '')) then
     begin
-      retorno := emitirNFe(editTokenEnviar.Text, memoConteudo.Text, checkEnviaTxt.Checked);
+      retorno := emitirNFe(editTokenEnviar.Text, memoConteudo.Text, cbTpConteudo.Text);
       memoEnviar.Text := retorno;
 
       if(memoEnviar.Text[1] = '{') then
@@ -77,16 +79,13 @@ uses NFeApiFuncoes;
       end
       else
       begin
-        if pos('DOCTYPE html', retorno) > 0 then
-        begin
-          memoEnviar.Lines.Add(#13#10 + #13#10 + 'Codigo do erro: 400' + #13#10 + 'Motivo: Dados enviados são inválidos');
-        end
-        else
-        begin
+        try
           jsonRetorno := TJsonObject.Create(Copy(retorno, Pos(': ', retorno) + 2, Length(retorno)));
           jsonRetorno := jsonRetorno.getJSONObject('erro');
           memoEnviar.Lines.Add(#13#10 + #13#10 + 'Codigo do erro: ' + jsonRetorno.getString('cStat') + #13#10 +
           'Motivo: ' + jsonRetorno.getString('xMotivo'));
+        except
+          on E:Exception do
         end;
       end;
     end
@@ -116,10 +115,15 @@ uses NFeApiFuncoes;
       end
       else
       begin
+      try
         jsonRetorno := TJsonObject.Create(Copy(retorno, Pos(': ', retorno) + 2, Length(retorno)));
         jsonRetorno := jsonRetorno.getJSONObject('erro');
         memoConsultar.Lines.Add(#13#10 + #13#10 + 'Codigo do erro: ' + jsonRetorno.getString('cStat') + #13#10 +
           'Motivo: ' + jsonRetorno.getString('xMotivo'));
+      except
+        on E:Exception do
+          memoConsultar.Lines.Add(E.message);
+      end;
       end;
 
     end
@@ -139,14 +143,19 @@ uses NFeApiFuncoes;
     if ((editTokenDownload.Text <> '') and (editChaveDownload.Text <> '') and (editTpDownload.Text <> '')) then
     begin
       //Valida se todos os campos foram preenchidos com algum valor
-      retorno := downloadNFe(editTokenDownload.Text, editChaveDownload.Text, editTpDownload.Text, checkExibir.Checked);
+      retorno := downloadNFeAndSave(editTokenDownload.Text, editChaveDownload.Text, editTpDownload.Text, 'Documentos\', checkExibir.Checked);
       memoDownload.Text := retorno;
 
       if(memoDownload.Text[1] <> '{') then
       begin
+        try
           jsonRetorno := TJsonObject.Create(Copy(retorno, Pos(': ', retorno) + 2, Length(retorno)));
           memoDownload.Lines.Add(#13#10 + #13#10 + 'Codigo do erro: ' + jsonRetorno.getString('status') + #13#10 +
 	            'Motivo: ' + jsonRetorno.getString('motivo'));
+        except
+        on E:Exception do
+          memoDownload.Lines.Add(E.message);
+        end;
       end;
     end
     else

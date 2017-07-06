@@ -1,15 +1,17 @@
-unit NFeApiFuncoes;
+unit NFeAPI;
 
 interface
 uses
   Windows, Messages, SysUtils, Variants, Classes, Graphics, Controls, Forms,
-  Dialogs, ComCtrls, StdCtrls, IdHTTP, ShellApi, IdCoderMIME, EncdDecd;
+  Dialogs, ComCtrls, StdCtrls, IdHTTP, IdIOHandler, IdIOHandlerSocket, IdIOHandlerStack,
+  IdSSL, IdSSLOpenSSL, ShellApi, IdCoderMIME, EncdDecd;
 
 //Assinatura das funções
-function enviaConteudoParaAPI(token: String; conteudo:TStringStream; url:String; isTxt:boolean):String;
-function emitirNFe(token, conteudo: String; isTxt: boolean): String;
+function enviaConteudoParaAPI(token: String; conteudo:TStringStream; url, tpConteudo:String):String;
+function emitirNFe(token, conteudo, tpConteudo: String): String;
 function consultarStatusProcessamento(token, CNPJ, nsNRec: String): String;
-function downloadNFe(token, chNFe, tpDown:String; exibeNaTela: boolean): String;
+function downloadNFe(token, chNFe, tpDown:String): String;
+function downloadNFeAndSave(token, chNFe, tpDown: String; caminho:String = ''; exibeNaTela: boolean = false): String;
 function salvaXML(retorno, caminho, chNFe: String): String;
 function salvaJSON(retorno, caminho, chNFe: String): String;
 function salvaPDF(retorno, caminho, chNFe: String): String;
@@ -20,24 +22,30 @@ implementation
 
 
   //Função genérica de envio para um url, contendo o token no header
-  function enviaConteudoParaAPI(token: String; conteudo:TStringStream; url:String; isTxt:boolean): String;
+  function enviaConteudoParaAPI(token: String; conteudo:TStringStream; url, tpConteudo:String): String;
   var
     retorno: String;
     HTTP: TIdHTTP;  //Disponível na aba 'Indy Servers'
+    IdSSLIOHandlerSocketOpenSSL1: TIdSSLIOHandlerSocketOpenSSL; //Disponivel na aba Indy I/O Handlers
   begin
     HTTP := TIdHTTP.Create(nil);
-
     try
-
-      if isTxt then  //Informa que vai mandar um TXT
+      if tpConteudo = 'txt' then  //Informa que vai mandar um TXT
       begin
         HTTP.Request.ContentType := 'text/plain';
       end
-      else	//Se for JSON
+      else if tpConteudo = 'xml' then	//Se for XML
+      begin
+        HTTP.Request.ContentType := 'application/xml';
+      end
+      else  //JSON
       begin
         HTTP.Request.ContentType := 'application/json';
       end;
 
+      //Abre SSL
+      IdSSLIOHandlerSocketOpenSSL1 := TIdSSLIOHandlerSocketOpenSSL.Create(nil);
+      HTTP.IOHandler := IdSSLIOHandlerSocketOpenSSL1;
 
       //Avisa o uso de UTF-8
       HTTP.Request.ContentEncoding := 'UTF-8';
@@ -51,34 +59,9 @@ implementation
 
       except
         on E:EIdHTTPProtocolException do
-
-          Case HTTP.ResponseCode of
-          //Se o json conter algum erro
-            400: begin
-              retorno :=  '400: ' + e.ErrorMessage;
-              ShowMessage('Json inválido, verifique o retorno para mais informações');
-            end;
-            //Se o token não for enviado ou for inválido
-            401: begin
-              retorno := '401: ' + e.ErrorMessage;
-              ShowMessage('Token não enviado ou inválido');
-            end;
-            //Se o token informado for inválido 403
-            403: begin
-              retorno := '403: ' + e.ErrorMessage;
-              ShowMessage('Token sem permissão');
-            end;
-            //Se não encontrar o que foi requisitado
-            404:begin
-              retorno := '404: ' + e.ErrorMessage;
-              ShowMessage('Não encontrado, verifique o retorno para mais informações');
-            end;
-            //Caso contrário
-            else
-              retorno := HTTP.ResponseText + ': ' + e.ErrorMessage;
-              ShowMessage('Erro desconhecido, verifique o retorno para mais informações');
-          end;
-
+          retorno :=  e.ErrorMessage;
+        on E:Exception do
+          retorno := E.message;
       end;
 
     finally
@@ -91,7 +74,7 @@ implementation
   end;
 
   //Envia NFe
-  function emitirNFe(token, conteudo: String; isTxt: boolean): String;
+  function emitirNFe(token, conteudo, tpConteudo: String): String;
   var
     conteudoEnviar: TStringStream;
     urlEnvio, retorno: String;
@@ -100,7 +83,7 @@ implementation
     //Informa a url para onde deve ser enviado
     urlEnvio :=  'https://nfe.ns.eti.br/nfe/issue';
 
-    retorno := enviaConteudoParaAPI(token, conteudoEnviar, urlEnvio, isTxt);
+    retorno := enviaConteudoParaAPI(token, conteudoEnviar, urlEnvio, tpConteudo);
     Result := retorno;
   end;
 
@@ -121,21 +104,18 @@ implementation
     urlEnvio := 'https://nfe.ns.eti.br/nfe/issue/status';
 
     //Envia o json para a url
-    retorno := enviaConteudoParaAPI(token, json, urlEnvio, False);
+    retorno := enviaConteudoParaAPI(token, json, urlEnvio, 'json');
 
     //Devolve o retorno da API
     Result := retorno;
   end;
 
-
-  //Download de NFe
-  function downloadNFe(token, chNFe, tpDown: String; exibeNaTela: boolean): String;
+  function downloadNFe(token, chNFe, tpDown:String): String;
   var
     json: TStringStream;
-    baixarXML, baixarPDF, baixarJSON: boolean;
-    caminho, status, urlEnvio, retorno: String;
+    urlEnvio, retorno: String;
   begin
-    //Monta o Json
+  //Monta o Json
     json := TStringStream.Create('{' +
 			'"X-AUTH-TOKEN": "' + token + '",' +
 			'"chNFe": "' + chNFe + '",' +
@@ -146,13 +126,22 @@ implementation
     urlEnvio := 'https://nfe.ns.eti.br/nfe/get';
 
     //Envia o json para a url
-    retorno := enviaConteudoParaAPI(token, json, urlEnvio, False);
+    retorno := enviaConteudoParaAPI(token, json, urlEnvio, 'json');
+    Result := retorno;
+  end;
 
+  //Download de NFe
+  function downloadNFeAndSave(token, chNFe, tpDown: String; caminho:String = ''; exibeNaTela: boolean = false): String;
+  var
+    baixarXML, baixarPDF, baixarJSON: boolean;
+    status, retorno: String;
+  begin
+    retorno := downloadNFe(token, chNFe, tpDown);
     //Pega o status de retorno da requisição
     status := Copy(retorno, Pos('"status": ', retorno) + 11, 3);
 
-    //Informa o diretorio onde salvar o arquivo
-    caminho := '';
+    if not DirectoryExists(caminho) then
+      CreateDir(caminho);
 
     //Checa o que baixar com base no tpDown informado
     if Pos('X', tpDown) <> 0 then
@@ -190,7 +179,6 @@ implementation
     //Devolve o retorno da API
     Result := retorno;
   end;
-
 
   //Função para salvar o XML de retorno
   function salvaXML(retorno, caminho, chNFe: String): String;
